@@ -360,20 +360,6 @@ textarea.export-box{width:100%;background:var(–bg);border:2px solid var(–dim
     </div>
     <button class="modal-btn" onclick="saveTaskModal()">保存 ✨</button>
     <button class="modal-btn danger" id="tm-del-btn" style="display:none;margin-top:10px" onclick="deleteTask()">删除任务</button>
-    <!-- Evolution config -->
-    <button class="evo-toggle" id="tm-evo-toggle" onclick="toggleEvoSection()">⚡ 设置进化路线 ▾</button>
-    <div class="evo-section" id="tm-evo-section" style="display:none">
-      <div class="evo-section-label">进化后的任务（填写后，可在任务菜单中触发进化）</div>
-      <div class="field-label" style="margin-top:0">进化后的名称</div>
-      <input class="field-input" id="tm-evo-name" placeholder="例：健身30分钟">
-      <div class="field-label">进化后的属性</div>
-      <div class="attr-pick" id="tm-evo-attr-pick"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
-        <div><div class="field-label">XP 奖励</div><input class="field-input" id="tm-evo-xp" type="number" value="15"></div>
-        <div><div class="field-label">积分奖励</div><input class="field-input" id="tm-evo-pts" type="number" value="15"></div>
-      </div>
-      <button class="modal-btn danger" id="tm-evo-clear-btn" style="margin-top:12px;font-size:12px;padding:10px" onclick="clearEvoConfig()">清除进化设置</button>
-    </div>
   </div>
 </div>
 
@@ -391,6 +377,27 @@ textarea.export-box{width:100%;background:var(–bg);border:2px solid var(–dim
     <input class="field-input" id="lm-threshold" type="number" placeholder="例：50" value="">
     <button class="modal-btn" onclick="saveLockedModal()">保存 ✨</button>
     <button class="modal-btn danger" id="lm-del-btn" style="display:none;margin-top:10px" onclick="deleteLockedItem()">删除此支线</button>
+  </div>
+</div>
+
+<!-- Evolution Modal (accessed from Settings) -->
+
+<div class="modal-overlay" id="evo-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="evo-modal-title">设置进化路线</h3><button class="modal-close" onclick="closeModal('evo-modal')">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;line-height:1.7">
+      设置后，任务卡片菜单（⋯）里会出现「触发进化」选项，你觉得时机到了手动触发即可。
+    </div>
+    <div class="field-label">进化后的名称</div>
+    <input class="field-input" id="em-name" placeholder="例：健身30分钟">
+    <div class="field-label">进化后的属性</div>
+    <div class="attr-pick" id="em-attr-pick"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><div class="field-label">XP 奖励</div><input class="field-input" id="em-xp" type="number" value="15"></div>
+      <div><div class="field-label">积分奖励</div><input class="field-input" id="em-pts" type="number" value="15"></div>
+    </div>
+    <button class="modal-btn" onclick="saveEvoModal()">保存进化路线 ✨</button>
+    <button class="modal-btn danger" id="em-del-btn" style="display:none;margin-top:10px" onclick="clearEvoModal()">清除此进化路线</button>
   </div>
 </div>
 
@@ -478,6 +485,20 @@ textarea.export-box{width:100%;background:var(–bg);border:2px solid var(–dim
   <button class="tab" onclick="switchTab('settings',this)">⚙️ 设置</button>
 </div>
 
+<!-- 角色小部件：静态 DOM，不随 renderTasks 重建 -->
+
+<div id="char-widget">
+  <div id="char-avatar">
+    <img id="char-img-el" alt="律律" onerror="this.classList.remove('loaded')">
+    <span id="char-emoji-fb">🌸</span>
+  </div>
+  <div id="char-right">
+    <div id="char-state-tag">日常</div>
+    <div id="char-speech">今天也要加油哦～</div>
+    <button id="char-poke" onclick="charInteract()">戳一戳 ✨</button>
+  </div>
+</div>
+
 <div id="content">
   <div id="tab-tasks"></div>
   <div id="tab-attrs" style="display:none"></div>
@@ -537,30 +558,39 @@ const CHAR_STATES={
 let charState='idle';
 let charTimer=null;
 
-function setCharState(state,duration=3000){
+// duration=-1 means permanent (no auto-revert)
+function setCharState(state, duration=-1){
   charState=state;
   clearTimeout(charTimer);
+  charTimer=null;
   const cs=CHAR_STATES[state];
   const img=document.getElementById('char-img-el');
   const em=document.getElementById('char-emoji-fb');
   const tag=document.getElementById('char-state-tag');
   const sp=document.getElementById('char-speech');
   if(img){
-    img.src=cs.img;
-    img.onload=()=>{img.classList.add('loaded');em.style.display='none';};
-    img.onerror=()=>{img.classList.remove('loaded');em.style.display='block';};
+    if(img.dataset.state!==state){
+      img.dataset.state=state;
+      img.classList.remove('loaded');
+      img.src=cs.img;
+      img.onload=()=>{img.classList.add('loaded');if(em)em.style.display='none';};
+      img.onerror=()=>{img.classList.remove('loaded');if(em)em.style.display='block';};
+    }
   }
   if(em)em.textContent=cs.emoji;
   if(tag)tag.textContent=cs.tag;
-  if(sp){sp.textContent=cs.speech;sp.style.animation='none';void sp.offsetWidth;sp.style.animation='';}
-  if(state!=='idle'){charTimer=setTimeout(()=>setCharState('idle'),duration);}
+  if(sp)sp.textContent=cs.speech;
+  // Only revert if duration specified (>0)
+  if(duration>0){
+    charTimer=setTimeout(()=>setCharState('idle',-1), duration);
+  }
 }
 function charInteract(){
-  const msgs=['戳我干嘛啦～','哎呀！','嗯？','......','我在认真的！'];
-  const idx=Math.floor(Math.random()*msgs.length);
+  const msgs=['戳我干嘛啦～','哎呀！','嗯？','......','我在认真的！','让我休息一下嘛'];
   const sp=document.getElementById('char-speech');
-  if(sp)sp.textContent=msgs[idx];
-  clearTimeout(charTimer);charTimer=setTimeout(()=>setCharState('idle'),2000);
+  if(sp)sp.textContent=msgs[Math.floor(Math.random()*msgs.length)];
+  clearTimeout(charTimer);
+  charTimer=setTimeout(()=>setCharState(charState,-1), 2000);
 }
 
 const ACHS=[
@@ -662,7 +692,7 @@ function popAch(){
   document.getElementById('ap-desc').textContent=a.desc;
   document.getElementById('ach-popup').className='show';
   document.getElementById('ach-overlay').className='show';
-  setCharState('happy',4000);
+  setCharState('happy', 4000);
 }
 function closeAchPopup(){
   document.getElementById('ach-popup').className='';
@@ -752,26 +782,16 @@ function renderTasks(){
   const sc=getStatusCopy(),st=getAppStatus();
   const core=vis.slice(0,5),more=vis.slice(5);
 
-  // Character state based on status
-  if(st==='lost')setCharState('tired');
-  else if(st==='far')setCharState('meh');
+  // Update char state based on app status (only override if not in a temp happy/excited state)
+  if(charState==='idle'||charState==='tired'||charState==='meh'){
+    if(st==='lost') setCharState('tired');
+    else if(st==='far') setCharState('meh');
+    else setCharState('idle');
+  }
 
   let h=``;
 
-  // Character widget
-  h+=`<div id="char-widget">
-    <div id="char-avatar">
-      <img id="char-img-el" src="${CHAR_STATES[charState].img}" onerror="this.classList.remove('loaded')">
-      <span id="char-emoji-fb">${CHAR_STATES[charState].emoji}</span>
-    </div>
-    <div id="char-right">
-      <div id="char-state-tag">${CHAR_STATES[charState].tag}</div>
-      <div id="char-speech">${CHAR_STATES[charState].speech}</div>
-      <button id="char-poke" onclick="charInteract()">戳一戳 ✨</button>
-    </div>
-  </div>`;
-
-  // Status card (no diary mention here)
+  // Status card
   h+=`<div class="status-card">
     <div class="status-top">
       <div>
@@ -832,9 +852,6 @@ function renderTasks(){
   }
 
   document.getElementById('tab-tasks').innerHTML=h;
-  // Try loading char image
-  const img=document.getElementById('char-img-el');
-  if(img){img.onload=()=>img.classList.add('loaded');img.onerror=()=>img.classList.remove('loaded');}
 }
 
 function doTask(id){
@@ -854,10 +871,19 @@ function doTask(id){
   const vis=allTasks().filter(x=>!S.hiddenTasks[x.id]);
   if(vis.every(x=>S.tasksDone[td][x.id])){
     S.allDay=true;S.allDayDates=S.allDayDates||[];
-    if(!S.allDayDates.includes(td)){S.allDayDates.push(td);if(S.allDayDates.length>=7)S.allDays=Math.max(S.allDays||0,S.allDayDates.length);}
-    setCharState('excited',4000);
+    if(!S.allDayDates.includes(td)){
+      S.allDayDates.push(td);
+      const sorted=[...S.allDayDates].sort();
+      let maxStreak=1,cur=1;
+      for(let i=1;i<sorted.length;i++){
+        const diff=Math.round((new Date(sorted[i])-new Date(sorted[i-1]))/86400000);
+        if(diff===1){cur++;maxStreak=Math.max(maxStreak,cur);}else cur=1;
+      }
+      S.allDays=maxStreak;
+    }
+    setCharState('excited', 4000);
   } else {
-    setCharState('happy',2500);
+    setCharState('happy', 2500);
   }
   save();updateHdr();checkAchs();
   const a=ATTRS.find(x=>x.id===t.attrId);
@@ -892,7 +918,7 @@ function markEnough(){
   const yest=new Date(Date.now()-86400000).toLocaleDateString('sv-SE');
   S.streak=S.lastDate===td?S.streak:S.lastDate===yest?S.streak+1:1;S.lastDate=td;
   save();updateHdr();renderTasks();notif('☁️ 今天先到这里也很好','green');
-  setCharState('happy',2500);
+  setCharState('happy', 2500);
 }
 
 // Diary
@@ -919,21 +945,6 @@ function escapeHtml(s=''){return s.replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;'
 
 // Task modal
 let editTid=null;
-function toggleEvoSection(){
-  const s=document.getElementById('tm-evo-section');
-  const t=document.getElementById('tm-evo-toggle');
-  const open=s.style.display!=='none';
-  s.style.display=open?'none':'block';
-  t.textContent=open?'⚡ 设置进化路线 ▾':'⚡ 设置进化路线 ▴';
-}
-function clearEvoConfig(){
-  if(editTid){delete S.taskEvolutions?.[editTid];save();}
-  document.getElementById('tm-evo-name').value='';
-  document.getElementById('tm-evo-xp').value='15';
-  document.getElementById('tm-evo-pts').value='15';
-  document.querySelectorAll('#tm-evo-attr-pick .attr-opt').forEach(b=>{b.classList.remove('sel');b.style.cssText='';});
-  notif('进化设置已清除');
-}
 function openTaskModal(id){
   editTid=id||null;
   const isCustom=id&&(S.customTasks||[]).find(x=>x.id===id);
@@ -947,21 +958,6 @@ function openTaskModal(id){
     const sel=taskData&&taskData.attrId===a.id;
     return`<button class="attr-opt${sel?' sel':''}" style="${sel?'background:'+a.color+';color:#fff':''}"
       onclick="pickAttr(this,'${a.id}','${a.color}','tm-attr-pick')" data-attr="${a.id}">${a.emoji} ${a.name}</button>`;
-  }).join('');
-  // Evolution config
-  const evo=id?S.taskEvolutions?.[id]:null;
-  const alreadyEvolved=id&&(S.evolvedTasks?.[id]||(id==='clean'&&S.evolved));
-  document.getElementById('tm-evo-section').style.display='none';
-  document.getElementById('tm-evo-toggle').textContent='⚡ 设置进化路线 ▾';
-  document.getElementById('tm-evo-name').value=evo?evo.name:'';
-  document.getElementById('tm-evo-xp').value=evo?evo.xp:15;
-  document.getElementById('tm-evo-pts').value=evo?evo.pts:15;
-  document.getElementById('tm-evo-clear-btn').style.display=evo?'block':'none';
-  document.getElementById('tm-evo-toggle').style.display=alreadyEvolved?'none':'block';
-  document.getElementById('tm-evo-attr-pick').innerHTML=ATTRS.map(a=>{
-    const sel=evo&&evo.attrId===a.id;
-    return`<button class="attr-opt${sel?' sel':''}" style="${sel?'background:'+a.color+';color:#fff':''}"
-      onclick="pickAttr(this,'${a.id}','${a.color}','tm-evo-attr-pick')" data-attr="${a.id}">${a.emoji} ${a.name}</button>`;
   }).join('');
   openModal('task-modal');
 }
@@ -977,19 +973,6 @@ function saveTaskModal(){
     if(isCustom){const t=S.customTasks.find(x=>x.id===editTid);t.name=name;t.xp=xp;t.pts=pts;t.attrId=attrId;}
     else{if(!S.taskOverrides)S.taskOverrides={};S.taskOverrides[editTid]={name,xp,pts,attrId};}
   }else{if(!S.customTasks)S.customTasks=[];S.customTasks.push({id:'c'+Date.now(),name,attrId,xp,pts});}
-  // Save evolution config if section is open and name is filled
-  const evoName=document.getElementById('tm-evo-name').value.trim();
-  const taskId=editTid||(S.customTasks[S.customTasks.length-1]?.id);
-  if(evoName&&taskId){
-    const evoXp=parseInt(document.getElementById('tm-evo-xp').value)||15;
-    const evoPts=parseInt(document.getElementById('tm-evo-pts').value)||15;
-    const evoAb=document.querySelector('#tm-evo-attr-pick .attr-opt.sel');
-    const evoAttrId=evoAb?evoAb.dataset.attr:attrId;
-    if(!S.taskEvolutions)S.taskEvolutions={};
-    S.taskEvolutions[taskId]={name:evoName,attrId:evoAttrId,xp:evoXp,pts:evoPts};
-  } else if(!evoName&&editTid&&S.taskEvolutions?.[editTid]&&document.getElementById('tm-evo-section').style.display!=='none'){
-    delete S.taskEvolutions[editTid];
-  }
   save();closeModal('task-modal');renderTasks();notif('✅ 任务已保存！','green');
 }
 function deleteTask(){
@@ -1003,6 +986,42 @@ function deleteTask(){
 function pickAttr(btn,id,color,container){
   document.querySelectorAll('#'+container+' .attr-opt').forEach(b=>{b.classList.remove('sel');b.style.cssText='';});
   btn.classList.add('sel');btn.style.background=color;btn.style.color='#fff';
+}
+
+// ═══════════════ EVOLUTION MODAL ═══════════════
+let editEvoTid=null;
+function openEvoModal(taskId){
+  editEvoTid=taskId;
+  const t=allTasks().find(x=>x.id===taskId);
+  const evo=S.taskEvolutions?.[taskId]||null;
+  const alreadyEvolved=S.evolvedTasks?.[taskId]||(taskId==='clean'&&S.evolved);
+  document.getElementById('evo-modal-title').textContent=`进化路线：${t?t.name:taskId}`;
+  document.getElementById('em-name').value=evo?evo.name:'';
+  document.getElementById('em-xp').value=evo?evo.xp:15;
+  document.getElementById('em-pts').value=evo?evo.pts:15;
+  document.getElementById('em-del-btn').style.display=evo?'block':'none';
+  document.getElementById('em-attr-pick').innerHTML=ATTRS.map(a=>{
+    const sel=evo&&evo.attrId===a.id;
+    return`<button class="attr-opt${sel?' sel':''}" style="${sel?'background:'+a.color+';color:#fff':''}"
+      onclick="pickAttr(this,'${a.id}','${a.color}','em-attr-pick')" data-attr="${a.id}">${a.emoji} ${a.name}</button>`;
+  }).join('');
+  openModal('evo-modal');
+}
+function saveEvoModal(){
+  const name=document.getElementById('em-name').value.trim();
+  if(!name){notif('请输入进化后的名称','err');return;}
+  const xp=parseInt(document.getElementById('em-xp').value)||15;
+  const pts=parseInt(document.getElementById('em-pts').value)||15;
+  const ab=document.querySelector('#em-attr-pick .attr-opt.sel');
+  const attrId=ab?ab.dataset.attr:'knowledge';
+  if(!S.taskEvolutions)S.taskEvolutions={};
+  S.taskEvolutions[editEvoTid]={name,attrId,xp,pts};
+  save();closeModal('evo-modal');renderSettings();notif('✅ 进化路线已设置！','green');
+}
+function clearEvoModal(){
+  if(!editEvoTid)return;
+  delete S.taskEvolutions[editEvoTid];
+  save();closeModal('evo-modal');renderSettings();notif('进化路线已清除');
 }
 
 // ═══════════════ ATTRS ═══════════════
@@ -1065,7 +1084,7 @@ function renderQuests(){
       </div>
     </div>`;
   });
-  h+=`<button class="add-btn" style="width:100%;margin-top:8px;border-radius:16px;padding:12px" onclick="openLockedModal()">＋ 新建待解锁支线</button>`;
+  h+=`<button class="add-btn" style="width:100%;margin-top:8px;border-radius:16px;padding:12px;box-sizing:border-box" onclick="openLockedModal()">＋ 新建待解锁支线</button>`;
   document.getElementById('tab-quests').innerHTML=h;
 }
 function updQ(id,delta){
@@ -1079,7 +1098,7 @@ function updQ(id,delta){
     else if(id==='eng')notif(`🗣️ 英语打卡第${S.questProgress[id]}天！`,'green');
     else notif(`✅ +1 ${allQuests().find(x=>x.id===id)?.unit||''}`,'green');
     S.totalEarned=(S.totalEarned||0)+10;
-    setCharState('happy',2000);
+    setCharState('happy', 2000);
   }
   save();checkAchs();renderQuests();
 }
@@ -1233,7 +1252,7 @@ function buyItem(id){
   S.purchaseHistory.unshift({id,name:item.name,emoji:item.emoji,cost:item.cost,date:today()});
   save();checkAchs();updateHdr();renderShop();
   notif(`🎉 成功兑换：${item.name}！`);
-  setCharState('excited',4000);
+  setCharState('excited', 4000);
 }
 function delShop(id){S.customShop=(S.customShop||[]).filter(i=>i.id!==id);save();renderShop();notif('已删除');}
 function pickTier(btn){document.querySelectorAll('.tier-opt').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');}
@@ -1323,10 +1342,40 @@ function renderHistory(){
 
 // ═══════════════ SETTINGS ═══════════════
 function renderSettings(){
+  // Build evolution section: all tasks, show evo status, edit button
+  const allT=allTasks();
+  let evoRows='';
+  allT.filter(t=>!S.hiddenTasks[t.id]).forEach(t=>{
+    const evo=S.taskEvolutions?.[t.id];
+    const alreadyEvolved=S.evolvedTasks?.[t.id]||(t.id==='clean'&&S.evolved);
+    const a=ATTRS.find(x=>x.id===t.attrId)||ATTRS[0];
+    evoRows+=`<div class="settings-row">
+      <div style="flex:1;min-width:0">
+        <div class="sr-label" style="font-size:13px">${t.name}</div>
+        <div class="sr-sub">${
+          alreadyEvolved?'✅ 已进化':
+          evo?`⚡ 进化为「${evo.name}」`:
+          '未设置进化路线'
+        }</div>
+      </div>
+      ${alreadyEvolved
+        ?`<span style="font-size:11px;color:var(--mint);font-weight:700;padding:0 8px">已完成</span>`
+        :`<button class="settings-btn" onclick="openEvoModal('${t.id}')">${evo?'编辑':'设置'}</button>`
+      }
+    </div>`;
+  });
+
   document.getElementById('tab-settings').innerHTML=`
   <div class="settings-card">
+    <div class="settings-card-header">⚡ 任务进化路线</div>
+    <div style="padding:10px 18px;font-size:12px;color:var(--muted);font-weight:600;line-height:1.7;border-bottom:1px solid var(--bg)">
+      为任务设置进化目标。设置后，任务卡片的 ⋯ 菜单里会出现「触发进化」，你觉得时机到了手动触发。
+    </div>
+    ${evoRows}
+  </div>
+  <div class="settings-card">
     <div class="settings-card-header">📦 数据备份</div>
-    <div style="padding:14px 18px;font-size:12px;color:var(--muted);font-weight:600;line-height:1.8">
+    <div style="padding:10px 18px;font-size:12px;color:var(--muted);font-weight:600;line-height:1.8;border-bottom:1px solid var(--bg)">
       每次找我修改文件前，先导出一次存到备忘录，万无一失 🌸
     </div>
     <div class="settings-row">
