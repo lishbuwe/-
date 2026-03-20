@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="养成计划">
+<meta name="apple-mobile-web-app-title" content="你的养成计划">
 <meta name="theme-color" content="#fef6ee">
 <!-- 添加到主屏幕时的图标 -->
 <link rel="apple-touch-icon" href="logo.png">
@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="167x167" href="logo.png">
 <link rel="apple-touch-icon" sizes="180x180" href="logo.png">
 <link rel="icon" type="image/png" href="logo.png">
-<title>养成计划</title>
+<title>你的养成计划</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -29,8 +29,10 @@
   --sb:env(safe-area-inset-bottom,0px);
   --radius:20px;
 }
-  input, textarea, select{
-  font-size:16px !important;
+  html, body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;overscroll-behavior:none;}
@@ -1641,12 +1643,36 @@ const charArea=document.getElementById('char-area');
 if(charArea)charArea.style.display='block';
 checkOnboard();
 renderTasks();
-  document.addEventListener('focusout', ()=>{
-  setTimeout(()=>{
-    window.scrollTo(0,0);
-    document.body.style.height = window.innerHeight + 'px';
-  },100);
-});
+</script>
+  <script>
+(function () {
+  const vv = window.visualViewport;
+  if (!vv) return;
+
+  function isField(el) {
+    return el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+  }
+
+  function resetView() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        window.scrollTo(0, 0);
+      });
+    });
+  }
+
+  document.addEventListener('focusout', function () {
+    setTimeout(resetView, 300);
+  });
+
+  vv.addEventListener('resize', function () {
+    if (!isField(document.activeElement)) {
+      setTimeout(resetView, 120);
+    }
+  });
+})();
 </script>
 </body>
 </html>
