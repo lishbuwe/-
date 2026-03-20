@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="律律养成计划">
+<meta name="apple-mobile-web-app-title" content="养成计划">
 <meta name="theme-color" content="#fef6ee">
 <!-- 添加到主屏幕时的图标 -->
 <link rel="apple-touch-icon" href="logo.png">
@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="167x167" href="logo.png">
 <link rel="apple-touch-icon" sizes="180x180" href="logo.png">
 <link rel="icon" type="image/png" href="logo.png">
-<title>律律养成计划</title>
+<title>养成计划</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -28,6 +28,9 @@
   --shadow:0 4px 20px rgba(200,150,150,0.12);
   --sb:env(safe-area-inset-bottom,0px);
   --radius:20px;
+}
+  input, textarea, select{
+  font-size:16px !important;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;overscroll-behavior:none;}
@@ -1571,7 +1574,7 @@ function renderSettings(){
       <button class="settings-btn red" onclick="doReset()">重置</button>
     </div>
   </div>
-  <div style="text-align:center;margin-top:28px;font-size:11px;color:var(--dim);font-weight:600">律律养成计划 🌸 · 数据存于本地浏览器</div>`;
+  <div style="text-align:center;margin-top:28px;font-size:11px;color:var(--dim);font-weight:600">养成计划 🌸 · 数据存于本地浏览器</div>`;
 }
 function doExport(){
   const data=JSON.stringify(S);
@@ -1638,6 +1641,12 @@ const charArea=document.getElementById('char-area');
 if(charArea)charArea.style.display='block';
 checkOnboard();
 renderTasks();
+  document.addEventListener('focusout', ()=>{
+  setTimeout(()=>{
+    window.scrollTo(0,0);
+    document.body.style.height = window.innerHeight + 'px';
+  },100);
+});
 </script>
 </body>
 </html>
